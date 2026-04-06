@@ -1,0 +1,27 @@
+name: Build Fogos Kernel (KernelSU)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: 📥 Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential bc bison flex libssl-dev libelf-dev \
+            git curl python3 rsync
+
+      - name: ⬇️ Download Clang
+        run: |
+          git clone --depth=1 https://github.com/kdrag0n/proton-clang.git clang
+
+      - name: 🔗 Setup KernelSU
+        run: |
+          curl -LSs https://raw.githubusercontent.com/tiann/KernelSU/main/kernel
