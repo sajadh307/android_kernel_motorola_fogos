@@ -1,4 +1,4 @@
-name: Build Fogos Kernel (KernelSU)
+name: Build Fogos Kernel (KernelSU REAL)
 
 on:
   workflow_dispatch:
@@ -18,10 +18,62 @@ jobs:
             build-essential bc bison flex libssl-dev libelf-dev \
             git curl python3 rsync
 
-      - name: ⬇️ Download Clang
+      - name: ⬇️ Download Proton Clang
         run: |
           git clone --depth=1 https://github.com/kdrag0n/proton-clang.git clang
 
       - name: 🔗 Setup KernelSU
         run: |
-          curl -LSs https://raw.githubusercontent.com/tiann/KernelSU/main/kernel
+          curl -LSs https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh | bash -
+
+      - name: 🏗️ Build Kernel (REAL BUILD)
+        run: |
+          export ARCH=arm64
+          export SUBARCH=arm64
+
+          export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
+          export CC=clang
+          export LLVM=1
+          export LLVM_IAS=1
+
+          mkdir -p out
+
+          echo "🔧 Running defconfig..."
+          make O=out lineage_fogos_defconfig
+
+          echo "⚙️ Fixing configs..."
+          scripts/config --file out/.config -d CONFIG_DEBUG_INFO
+          scripts/config --file out/.config -d CONFIG_DEBUG_INFO_BTF
+
+          make O=out olddefconfig
+
+          echo "🚀 Starting REAL build..."
+          make -j$(nproc) O=out \
+            ARCH=arm64 \
+            CC=clang \
+            LLVM=1 \
+            LLVM_IAS=1 \
+            V=1
+
+          echo "🔍 Checking build output..."
+          if [ ! -f out/arch/arm64/boot/Image.gz ]; then
+            echo "❌ Build failed: Image.gz not found"
+            exit 1
+          fi
+
+          echo "✅ Build successful"
+
+      - name: 📦 Package Kernel
+        run: |
+          git clone https://github.com/osm0sis/AnyKernel3.git AnyKernel3
+
+          cp out/arch/arm64/boot/Image.gz AnyKernel3/ || exit 1
+
+          cd AnyKernel3
+          zip -r9 fogos-kernel-KSU.zip *
+
+      - name: 📤 Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fogos-kernel-KSU
+          path: AnyKernel3/fogos-kernel-KSU.zip
